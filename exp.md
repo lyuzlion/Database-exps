@@ -58,7 +58,7 @@ insert into test1_deposit
     values('62002000', '0262','370111197302022021',20000,to_date('2019-12-12 12:12:12', 'yyyy-mm-dd hh24:mi:ss'))
 ```
 
-
+# 实验二
 ## 2.1
 ```sql
 create or replace view test2_01 as
@@ -253,6 +253,46 @@ WHERE
           AND b.city = '重庆'
           AND dep.amount >= 6000
     );
+```
+## 2.10
+```sql
+CREATE OR REPLACE VIEW test2_10 AS
+SELECT
+    d.pid,
+    d.pname,
+    d.sex,
+    d.age,
+    d.birthday,
+    d.parentpid
+FROM bk.deptor d
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM bk.bank b
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM bk.deposit dep
+        WHERE dep.pid = d.pid
+          AND dep.bid = b.bid
+    )
+)
+```
+
+# 实验三
+## 3.1
+```sql
+CREATE TABLE test3_01 AS
+SELECT *
+FROM bk.deptor3
+WHERE REGEXP_LIKE(pid, '^[0-9]+$')
+```
+## 3.2
+```sql
+CREATE TABLE test3_02 AS
+SELECT *
+FROM bk.deptor3;
+
+DELETE FROM test3_02
+WHERE TO_CHAR(birthday, 'YYYYMMDD') <> SUBSTR(pid, 7, 8);
 ```
 
 
