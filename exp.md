@@ -294,5 +294,50 @@ FROM bk.deptor3;
 DELETE FROM test3_02
 WHERE TO_CHAR(birthday, 'YYYYMMDD') <> SUBSTR(pid, 7, 8);
 ```
+## 3.3
+```sql
+CREATE TABLE test3_03 AS
+SELECT * FROM bk.deptor3
 
+DELETE FROM test3_03
+WHERE 
+  sex NOT IN ('男', '女')  -- 直接过滤非标准值
+  and sex is not null
+```
+
+## 3.4
+```sql
+CREATE TABLE test3_04 AS
+SELECT * FROM bk.deptor3
+
+DELETE FROM test3_04
+WHERE pname like '% %'
+    or regexp_like(pname,'[A-Za-z0-9+-]')
+```
+
+
+
+## 3.5
+```sql
+CREATE TABLE test3_05 AS
+SELECT * FROM bk.deptor3
+DELETE FROM test3_05
+WHERE age != 2019 - EXTRACT(YEAR FROM birthday)
+```
+
+
+
+## 3.6
+```sql
+CREATE TABLE test3_06 AS
+SELECT *
+FROM bk.deptor3
+WHERE 
+  REGEXP_LIKE(pid, '^[0-9]{17}[0-9X]$')  
+  AND TO_DATE(SUBSTR(pid, 7, 8), 'YYYYMMDD') = birthday  
+  AND (sex IN ('男', '女')  or sex is null)
+  AND NOT REGEXP_LIKE(pname, '[A-Za-z0-9+-]')  
+  AND pname not like '% %'  
+  AND age = 2019 - EXTRACT(YEAR FROM birthday)
+```
 
