@@ -341,3 +341,136 @@ WHERE
   AND age = 2019 - EXTRACT(YEAR FROM birthday)
 ```
 
+
+## 3.7
+```sql
+CREATE TABLE test3_07 AS
+SELECT d.*
+FROM bk.deptor3 d
+WHERE EXISTS (
+    SELECT 1
+    FROM bk.deposit dep
+    WHERE dep.pid = d.pid  -- 关联存款表中的储户
+)
+```
+
+
+## 3.8
+```sql
+CREATE TABLE test3_08 AS
+SELECT * FROM bk.deptor3
+DELETE FROM test3_08 child
+WHERE 
+    child.parentpid IS NOT NULL  -- 仅处理有父身份证编号的记录
+    AND NOT EXISTS (
+        SELECT 1
+        FROM test3_08 parent
+        WHERE parent.pid = child.parentpid  -- 关联父母身份证编号
+    );
+```
+
+
+## 3.9
+```sql
+CREATE TABLE test3_09 AS
+SELECT *
+FROM bk.deptor3
+WHERE sex IN ('男', '女')
+-- 步骤2：删除没有异性相同出生日期的记录
+DELETE FROM test3_09 t1
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM test3_09 t2
+    WHERE 
+        t1.birthday = t2.birthday  -- 出生日期相同
+        AND t1.sex != t2.sex       -- 性别不同
+);
+```
+
+
+## 3.10
+```sql
+CREATE TABLE test3_10 AS
+SELECT * FROM bk.deptor3
+-- 步骤2：删除在 bk.deptor 中不存在的身份证+姓名组合
+DELETE FROM test3_10 t
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM bk.deptor d
+    WHERE 
+        d.pid = t.pid    -- 身份证编号一致
+        AND d.pname = t.pname  -- 姓名一致
+);
+```
+
+## 实验四
+### 4.1
+```sql
+CREATE TABLE test4_01 AS
+SELECT * FROM bk.deptor3;
+
+UPDATE test4_01
+SET pid = 
+    SUBSTR(pid, 1, 6) ||              -- 保留前6位地区码
+    TO_CHAR(birthday, 'YYYYMMDD') ||   -- 更新为规范出生日期
+    SUBSTR(pid, 15)                    -- 保留后4位
+
+UPDATE test4_01
+SET sex = 
+    REPLACE(REPLACE(sex,
+        '男性', '男'),   -- 替换字母标识
+        '女性', '女')
+
+UPDATE test4_01
+SET pname = REGEXP_REPLACE(pname, '[ a-zA-Z0-9+-]', '');  -- 正则过滤非中文字符
+```
+
+### 4.2
+```sql
+CREATE TABLE test4_02 AS
+SELECT * FROM bk.deptor3;
+
+UPDATE test4_02
+SET age = 2019 - EXTRACT(YEAR FROM birthday)
+WHERE 
+    2019 - EXTRACT(YEAR FROM birthday) < age;  -- 仅修正年龄小于计算值的记录
+```
+
+## 4.4
+```sql
+-- 步骤1：复制表结构及数据
+CREATE TABLE test4_04 AS
+SELECT * FROM bk.deptor3;
+
+-- 步骤2：添加新列
+ALTER TABLE test4_04
+ADD (
+    total_count NUMBER,
+    total_amount NUMBER(10,2),
+    avg_amount NUMBER(10,2)
+);
+
+-- 步骤3：仅更新有存单记录的储户
+UPDATE test4_04 t
+SET 
+    total_count = (
+        SELECT COUNT(*)
+        FROM bk.deposit d
+        WHERE d.pid = t.pid
+    ),
+    total_amount = (
+        SELECT SUM(amount)
+        FROM bk.deposit d
+        WHERE d.pid = t.pid
+    ),
+    avg_amount = (
+        SELECT ROUND(AVG(amount), 2)
+        FROM bk.deposit d
+        WHERE d.pid = t.pid
+    )
+WHERE EXISTS (
+    SELECT 1
+    FROM bk.deposit d
+    WHERE d.pid = t.pid  -- 仅处理有存单记录的储户
+);
+```
