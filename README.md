@@ -1,2 +1,2 @@
 # DB-exp
-Database experiments of Taishan College, SDU.
+The answers to database experiments, Taishan College, SDU.
