@@ -416,13 +416,23 @@ SET pid =
     SUBSTR(pid, 15)                    -- 保留后4位
 
 UPDATE test4_01
-SET sex = 
-    REPLACE(REPLACE(sex,
-        '男性', '男'),   -- 替换字母标识
-        '女性', '女')
+SET sex = '男'
+WHERE 
+    sex like '%男%'
 
 UPDATE test4_01
-SET pname = REGEXP_REPLACE(pname, '[ a-zA-Z0-9+-]', '');  -- 正则过滤非中文字符
+SET sex = '女'
+WHERE 
+    sex like '%女%'
+
+UPDATE test4_01
+SET sex = '% %'
+WHERE 
+    sex like ''
+
+UPDATE test4_01
+SET pname = REGEXP_REPLACE(pname, '[a-zA-Z0-9+-]', '')  -- 正则过滤非中文字符
+
 ```
 
 ### 4.2
@@ -435,6 +445,14 @@ SET age = 2019 - EXTRACT(YEAR FROM birthday)
 WHERE 
     2019 - EXTRACT(YEAR FROM birthday) < age;  -- 仅修正年龄小于计算值的记录
 ```
+
+
+## 4.3
+```sql
+
+```
+
+
 
 ## 4.4
 ```sql
