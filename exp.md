@@ -449,7 +449,21 @@ WHERE
 
 ## 4.3
 ```sql
-
+CREATE TABLE test4_03 AS SELECT * FROM bk.deptor3
+ALTER TABLE test4_03 ADD (
+    total_count NUMBER,
+    total_amount NUMBER,
+    avg_amount NUMBER(10,2)
+)
+UPDATE test4_03 t
+SET (total_count, total_amount, avg_amount) = (
+    SELECT 
+        COUNT(d.did),
+        SUM(d.amount),
+        AVG(d.amount)
+    FROM bk.deposit d
+    WHERE d.pid = t.pid
+)
 ```
 
 
@@ -490,5 +504,31 @@ WHERE EXISTS (
     SELECT 1
     FROM bk.deposit d
     WHERE d.pid = t.pid  -- 仅处理有存单记录的储户
+);
+```
+
+
+## 4.5
+```sql
+CREATE TABLE test4_05 AS SELECT * FROM bk.deptor3;
+
+ALTER TABLE test4_05
+ADD (
+    total_count INT,
+    total_amount NUMBER(15,2),
+    avg_amount NUMBER(10,2)
+);
+
+UPDATE test4_05 t
+SET (total_count, total_amount, avg_amount) = (
+    SELECT 
+        COUNT(*) AS total_count,
+        SUM(amount) AS total_amount,
+        CASE 
+            WHEN COUNT(*) = 0 THEN null
+            ELSE SUM(amount) / COUNT(*) 
+        END AS avg_amount
+    FROM bk.deposit d
+    WHERE d.pid IN (t.pid, t.parentpid)
 );
 ```
