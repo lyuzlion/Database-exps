@@ -532,3 +532,173 @@ SET (total_count, total_amount, avg_amount) = (
     WHERE d.pid IN (t.pid, t.parentpid)
 );
 ```
+
+
+## 4.6
+```sql
+CREATE TABLE test4_06 AS SELECT * FROM bk.deptor3;
+ALTER TABLE test4_06
+ADD COLUMN total_count INT,
+ADD COLUMN total_amount DECIMAL(12,2),
+ADD COLUMN avg_amount DECIMAL(12,2);
+UPDATE test4_06 t
+SET 
+    total_count = (
+        SELECT COUNT(d.did)
+        FROM bk.deposit d
+        WHERE d.pid = t.pid OR d.pid = t.parentpid
+    ),
+    total_amount = (
+        SELECT SUM(d.amount)
+        FROM bk.deposit d
+        WHERE d.pid = t.pid OR d.pid = t.parentpid
+    ),
+    avg_amount = (
+        SELECT AVG(d.amount)
+        FROM bk.deposit d
+        WHERE d.pid = t.pid OR d.pid = t.parentpid
+    )
+WHERE EXISTS (
+    SELECT 1
+    FROM bk.deposit d
+    WHERE d.pid = t.parentpid
+)
+
+UPDATE test4_06 t
+SET 
+    total_count = null,
+    total_amount = null,
+    avg_amount = null
+WHERE t.pid like '500101196707010559'
+```
+
+
+
+## 4.7
+```sql
+-- 将 bk.deptor3 表复制到主用户的 test4_07 表中
+CREATE TABLE test4_07 AS SELECT * FROM bk.deptor3;
+-- 添加总利息列，保留两位小数
+ALTER TABLE test4_07 
+ADD COLUMN total_interest DECIMAL(12,2);
+-- 创建临时表存储利息计算结果
+CREATE TABLE tmp_interest AS
+SELECT 
+    d.pid,
+    SUM(ROUND(d.amount * (TRUNC(SYSDATE) - TRUNC(d.dtime)) * b.dailyrate, 2)) AS total_interest
+FROM bk.deposit d
+JOIN bk.bank b ON d.bid = b.bid
+GROUP BY d.pid;
+
+-- 使用临时表更新 test4_07
+UPDATE test4_07 t
+SET total_interest = (
+    SELECT COALESCE(total_interest, 0)
+    FROM tmp_interest
+    WHERE pid = t.pid
+);
+```
+
+## 4.8
+```sql
+CREATE TABLE test4_08 AS
+SELECT pid, pname, sex, age, birthday, parentpid
+FROM bk.deptor3
+WHERE sex IN ('男', '女')
+
+ALTER TABLE test4_08
+ADD birthday1 DATE
+
+UPDATE test4_08 t1
+SET birthday1 = (
+    SELECT MAX(t2.birthday)
+    FROM test4_08 t2
+    WHERE TO_CHAR(t2.birthday, 'MMDD') = TO_CHAR(t1.birthday, 'MMDD')
+)
+```
+
+
+## 4.9
+```sql
+CREATE TABLE test4_09 AS 
+SELECT pid, pname, sex, age, birthday, parentpid 
+FROM bk.deptor3 
+WHERE sex IN ('男', '女');
+ALTER TABLE test4_09 
+ADD pid1 VARCHAR2(20);  -- 假设 pid 为字符串类型
+UPDATE test4_09 t1
+SET pid1 = COALESCE(
+    (
+        SELECT MAX(t3.pid)
+        FROM test4_09 t3
+        WHERE 
+            -- 条件 1: 月日相同
+            TO_CHAR(t3.birthday, 'MMDD') = TO_CHAR(t1.birthday, 'MMDD')
+            -- 条件 2: 年龄等于该生日组的最小年龄
+            AND TO_CHAR(t3.birthday, 'YYYY') = (
+                -- 子查询 2: 计算同生日组的最小年龄
+                SELECT MAX(TO_CHAR(t2.birthday, 'YYYY'))
+                FROM test4_09 t2
+                WHERE TO_CHAR(t2.birthday, 'MMDD') = TO_CHAR(t1.birthday, 'MMDD')
+            )
+    ),
+    t1.pid
+);
+```
+
+
+## 4.10
+```sql
+-- 复制 bk.deptor3 中性别为男或女的数据到主用户的 test4_10 表
+CREATE TABLE test4_10 AS 
+SELECT pid, pname, sex, age, birthday, parentpid 
+FROM bk.deptor3 
+WHERE sex IN ('男', '女');
+-- 为 test4_10 表添加用于存储「异性同生日最晚出生日期的最大学号」的列
+ALTER TABLE test4_10 
+ADD COLUMN pid1 VARCHAR2(20);  -- 假设 pid 为字符串类型
+-- 更新男同学的 pid1（指向同生日女同学中最晚出生日期的最大 pid）
+UPDATE test4_10 t1
+SET pid1 = COALESCE(
+    (
+        SELECT MAX(t3.pid)
+        FROM test4_10 t3
+        WHERE 
+            -- 条件 1: 月日相同
+            TO_CHAR(t3.birthday, 'MMDD') = TO_CHAR(t1.birthday, 'MMDD')
+            -- 条件 2: 性别为女
+            AND t3.sex = '女'
+            -- 条件 3: 出生日期等于该生日组女同学的最大日期
+            AND t3.birthday = (
+                SELECT MAX(t2.birthday)
+                FROM test4_10 t2
+                WHERE 
+                    TO_CHAR(t2.birthday, 'MMDD') = TO_CHAR(t1.birthday, 'MMDD')
+                    AND t2.sex = '女'
+            )
+    ),
+    null  -- 若没有符合条件的女同学，pid1 设为自身
+)
+WHERE t1.sex = '男';
+
+-- 更新女同学的 pid1（指向同生日男同学中最晚出生日期的最大 pid）
+UPDATE test4_10 t1
+SET pid1 = COALESCE(
+    (
+        SELECT MAX(t3.pid)
+        FROM test4_10 t3
+        WHERE 
+            TO_CHAR(t3.birthday, 'MMDD') = TO_CHAR(t1.birthday, 'MMDD')
+            AND t3.sex = '男'
+            AND t3.birthday = (
+                SELECT MAX(t2.birthday)
+                FROM test4_10 t2
+                WHERE 
+                    TO_CHAR(t2.birthday, 'MMDD') = TO_CHAR(t1.birthday, 'MMDD')
+                    AND t2.sex = '男'
+            )
+    ),
+    null
+)
+WHERE t1.sex = '女';
+```
