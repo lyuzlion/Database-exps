@@ -1144,3 +1144,86 @@ FROM (
 WHERE rank <= 20;
 ```
 
+# 实验七
+## 7.1
+```sql
+CREATE TABLE test7_01 AS
+SELECT *
+FROM bk.deptor
+WHERE 1 = 0;  -- 只创建结构，不插入数据
+CREATE UNIQUE INDEX idx_pid_unique ON test7_01(pid);
+INSERT INTO test7_01 (pid, pname, sex, age, birthday, parentpid)
+SELECT d.pid, d.pname, d.sex, d.age, d.birthday, d.parentpid
+FROM bk.deptor d
+WHERE d.parentpid IN (
+    SELECT parentpid
+    FROM bk.deptor
+    GROUP BY parentpid
+    HAVING COUNT(*) > 1
+);
+INSERT INTO test7_01 (pid, pname, sex, age, birthday, parentpid)
+SELECT DISTINCT d.parentpid, p.pname, p.sex, p.age, p.birthday, p.parentpid
+FROM bk.deptor d
+JOIN bk.deptor p ON d.parentpid = p.pid
+WHERE d.parentpid IN (
+    SELECT parentpid
+    FROM bk.deptor
+    GROUP BY parentpid
+    HAVING COUNT(*) > 1
+)
+AND NOT EXISTS (
+    SELECT 1
+    FROM test7_01 t
+    WHERE t.pid = p.pid
+);
+```
+
+## 7.2
+```sql
+CREATE TABLE test7_02 AS SELECT * FROM bk.deptor WHERE 1=0
+CREATE UNIQUE INDEX idx_test7_02_pid ON test7_02(pid)
+INSERT INTO test7_02
+SELECT d.* FROM bk.deptor d
+WHERE d.sex = '男'
+AND EXISTS (
+    SELECT parentpid FROM bk.deptor 
+    WHERE parentpid = d.parentpid AND sex = '男'
+    GROUP BY parentpid HAVING COUNT(*) >= 2
+)
+INSERT INTO test7_02
+SELECT d.* FROM bk.deptor d
+WHERE d.sex = '女'
+AND EXISTS (
+    SELECT parentpid FROM bk.deptor 
+    WHERE parentpid = d.parentpid AND sex = '女'
+    GROUP BY parentpid HAVING COUNT(*) >= 2
+)
+INSERT INTO test7_02
+SELECT p.* FROM bk.deptor p
+WHERE p.pid IN (
+    SELECT parentpid FROM bk.deptor 
+    WHERE sex = '男' GROUP BY parentpid HAVING COUNT(*) >= 2
+) AND p.sex='男'
+AND NOT EXISTS (SELECT 1 FROM test7_02 t WHERE t.pid = p.pid)
+INSERT INTO test7_02
+SELECT p.* FROM bk.deptor p
+WHERE p.pid IN (
+    SELECT parentpid FROM bk.deptor 
+    WHERE sex = '女' GROUP BY parentpid HAVING COUNT(*) >= 2
+) AND p.sex='男'
+AND NOT EXISTS (SELECT 1 FROM test7_02 t WHERE t.pid = p.pid)
+```
+## 7.3
+```sql
+CREATE TABLE test7_03 AS
+SELECT * FROM bk.deptor WHERE 1 = 0;
+ALTER TABLE test7_03
+ADD (total_amount NUMBER(15, 2));
+INSERT INTO test7_03 (pid, pname, sex, age, birthday, parentpid, total_amount)
+SELECT d.pid, d.pname, d.sex, d.age, d.birthday, d.parentpid,
+       NVL(SUM(de.amount), 0) AS total_amount
+FROM bk.deptor d
+LEFT JOIN bk.deposit de ON d.pid = de.pid
+GROUP BY d.pid, d.pname, d.sex, d.age, d.birthday, d.parentpid
+HAVING NVL(SUM(de.amount), 0) > 2000000;
+```
