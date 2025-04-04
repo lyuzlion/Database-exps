@@ -403,8 +403,8 @@ WHERE NOT EXISTS (
 );
 ```
 
-## 实验四
-### 4.1
+# 实验四
+## 4.1
 ```sql
 CREATE TABLE test4_01 AS
 SELECT * FROM bk.deptor3;
@@ -435,7 +435,7 @@ SET pname = REGEXP_REPLACE(pname, '[a-zA-Z0-9+-]', '')  -- 正则过滤非中文
 
 ```
 
-### 4.2
+## 4.2
 ```sql
 CREATE TABLE test4_02 AS
 SELECT * FROM bk.deptor3;
@@ -701,4 +701,225 @@ SET pid1 = COALESCE(
     null
 )
 WHERE t1.sex = '女';
+```
+# 实验五
+## 5.1
+```sql
+CREATE TABLE test5_01 AS
+SELECT 
+    b.bname AS Bname,
+    b.bid AS bid,
+    COUNT(d.did) AS dcount,
+    COUNT(DISTINCT d.pid) AS pcount,
+    SUM(d.amount) AS sum_amount,
+    ROUND(AVG(d.amount), 2) AS avg_amount
+FROM 
+    bk.deposit d
+    JOIN bk.bank b ON d.bid = b.bid
+    JOIN bk.deptor de ON d.pid = de.pid
+GROUP BY 
+    b.bid, b.bname
+```
+
+## 5.2
+```sql
+CREATE TABLE test5_02 AS
+SELECT 
+    b.city AS city,
+    -- 判断是否为城市合计行，设置bid为'0000'
+    CASE 
+        WHEN GROUPING(b.bid) = 1 THEN '0000' 
+        ELSE b.bid 
+    END AS bid,
+    -- 判断是否为城市合计行，设置Bname为'合计'
+    CASE 
+        WHEN GROUPING(b.bname) = 1 THEN '合计' 
+        ELSE b.bname 
+    END AS Bname,
+    COUNT(d.did) AS dcount,  -- 存款次数
+    SUM(d.amount) AS sum_amount  -- 存款总额
+FROM 
+    bk.deposit d
+    JOIN bk.bank b ON d.bid = b.bid
+    JOIN bk.deptor de ON d.pid = de.pid
+-- 按城市分组，同时生成城市合计行和分银行明细
+GROUP BY GROUPING SETS (
+    (b.city, b.bid, b.bname),  -- 分银行明细
+    (b.city)                   -- 城市合计行
+)
+ORDER BY 
+    b.city, 
+    bid
+```
+## 5.3
+```sql
+CREATE TABLE test5_03 AS
+WITH deposit_data AS (
+  SELECT 
+    TRUNC(EXTRACT(YEAR FROM de.birthday), -1) || '后' AS generation,
+    d.did,
+    d.amount
+  FROM bk.deposit d
+  JOIN bk.deptor de ON d.pid = de.pid
+  JOIN bk.bank b ON d.bid = b.bid
+)
+SELECT 
+  generation,
+  COUNT(did) AS dcount,
+  SUM(amount) AS sum_amount,
+  total_count,
+  ROUND(COUNT(did)/total_count * 100, 2) AS count_percent,
+  total_amount,
+  ROUND(SUM(amount)/total_amount * 100, 2) AS amount_percent
+FROM deposit_data
+CROSS JOIN (
+  SELECT 
+    COUNT(did) AS total_count,
+    SUM(amount) AS total_amount 
+  FROM deposit_data
+) totals
+GROUP BY generation, total_count, total_amount
+ORDER BY generation;
+```
+## 5.4
+```sql
+CREATE TABLE test5_04 AS
+SELECT 
+    b.city AS "CITY",
+    -- 国有银行统计
+    COUNT(CASE WHEN b.stru = '国有银行' THEN d.did END) AS "DCOUNT1",
+    ROUND(SUM(CASE WHEN b.stru = '国有银行' THEN d.amount ELSE 0 END), 2) AS "SUM_AMOUNT1",
+    ROUND(SUM(CASE WHEN b.stru = '国有银行' THEN d.amount ELSE 0 END) / 
+        NULLIF(SUM(d.amount), 0) * 100, 2) AS "AMOUNT_PERCENT1",
+    -- 股份银行统计
+    COUNT(CASE WHEN b.stru = '股份银行' THEN d.did END) AS "DCOUNT2",
+    ROUND(SUM(CASE WHEN b.stru = '股份银行' THEN d.amount ELSE 0 END), 2) AS "SUM_AMOUNT2",
+    ROUND(SUM(CASE WHEN b.stru = '股份银行' THEN d.amount ELSE 0 END) / 
+        NULLIF(SUM(d.amount), 0) * 100, 2) AS "AMOUNT_PERCENT2",
+    -- 合计统计
+    COUNT(d.did) AS "DCOUNT",
+    SUM(d.amount) AS "SUM_AMOUNT"
+FROM 
+    bk.deposit d
+    JOIN bk.bank b ON d.bid = b.bid
+    JOIN bk.deptor de ON d.pid = de.pid
+GROUP BY 
+    b.city
+ORDER BY 
+    b.city
+```
+## 5.5
+```sql
+CREATE OR REPLACE VIEW test5_05 AS
+SELECT 
+    SUBSTR(b.bname,3,4) AS Bankname,  -- 提取银行名称（后四位）
+    -- 北京地区统计（前两位=北京）
+    COUNT(CASE WHEN SUBSTR(b.bname,1,2) = '北京' THEN d.did END) AS dcount1,
+    ROUND(SUM(CASE WHEN SUBSTR(b.bname,1,2) = '北京' THEN d.amount ELSE 0 END),2) AS sum_amount1,
+    -- 上海地区统计（前两位=上海）
+    COUNT(CASE WHEN SUBSTR(b.bname,1,2) = '上海' THEN d.did END) AS dcount2,
+    ROUND(SUM(CASE WHEN SUBSTR(b.bname,1,2) = '上海' THEN d.amount ELSE 0 END),2) AS sum_amount2
+FROM 
+    bk.deposit d
+    INNER JOIN bk.bank b ON d.bid = b.bid
+    INNER JOIN bk.deptor de ON d.pid = de.pid
+GROUP BY 
+    SUBSTR(b.bname,3,4)  -- 按银行名称分组
+ORDER BY 
+    SUBSTR(b.bname,3,4);
+```
+## 5.6
+```sql
+CREATE OR REPLACE VIEW test5_06 AS
+WITH deposit_sum AS (
+  SELECT 
+    d.bid,
+    d.pid,
+    ROUND(SUM(d.amount), 2) AS sum_amount
+  FROM bk.deposit d
+  JOIN bk.deptor de ON d.pid = de.pid
+  GROUP BY d.bid, d.pid
+)
+SELECT 
+  bid,
+  pid,
+  sum_amount
+FROM (
+  SELECT 
+    deposit_sum.*,
+    DENSE_RANK() OVER (
+      PARTITION BY bid 
+      ORDER BY sum_amount DESC
+    ) AS amount_rank
+  FROM deposit_sum
+)
+WHERE amount_rank = 1
+ORDER BY bid;
+```
+## 5.7
+```sql
+CREATE OR REPLACE VIEW test5_07 AS
+SELECT 
+    TO_CHAR(TRUNC(amount, -3), 'FM0000') || '-' || TO_CHAR(TRUNC(amount, -3) + 999, 'FM0000') AS "AMOUNT",
+    COUNT(did) AS "DCOUNT",
+    SUM(amount) AS "SUM_AMOUNT"
+FROM 
+    bk.deposit
+WHERE 
+    amount > 1999 
+    AND amount < 10000
+GROUP BY 
+    TRUNC(amount, -3)
+ORDER BY 
+    TRUNC(amount, -3);
+```
+
+## 5.8
+```sql
+CREATE OR REPLACE VIEW test5_08 AS
+SELECT 
+    b.city AS CITY,
+    TRUNC(EXTRACT(YEAR FROM de.birthday), -1) || '后' AS GENERATION,
+    EXTRACT(YEAR FROM d.dtime) AS DYEAR,
+    COUNT(d.did) AS DCOUNT,
+    SUM(d.amount) AS SUM_AMOUNT
+FROM 
+    bk.deposit d
+    JOIN bk.bank b ON d.bid = b.bid
+    JOIN bk.deptor de ON d.pid = de.pid
+GROUP BY 
+    b.city,
+    TRUNC(EXTRACT(YEAR FROM de.birthday), -1),
+    EXTRACT(YEAR FROM d.dtime)
+ORDER BY 
+    b.city, 
+    GENERATION, 
+    DYEAR;
+```
+## 5.9
+```sql
+CREATE OR REPLACE VIEW test5_09 AS
+SELECT 
+    de.pid AS "PID",
+    de.pname AS "PNAME",
+    de.sex AS "SEX",
+    COUNT(d.did) AS "DCOUNT",
+    SUM(d.amount) AS "SUM_AMOUNT"
+FROM 
+    bk.deposit d
+    JOIN bk.deptor de ON d.pid = de.pid
+WHERE 
+    de.sex = '女'              -- 性别过滤条件
+    AND d.amount > 2000       -- 金额过滤条件
+GROUP BY 
+    de.pid, de.pname, de.sex
+HAVING 
+    COUNT(d.did) > 130        -- 存单数量过滤
+    AND SUM(d.amount) < 900000 -- 存款总额过滤
+ORDER BY 
+    de.pid;
+```
+## 5.10
+```sql
+
 ```
