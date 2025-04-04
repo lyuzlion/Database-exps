@@ -921,5 +921,226 @@ ORDER BY
 ```
 ## 5.10
 ```sql
-
+CREATE OR REPLACE VIEW test5_10 AS
+SELECT 
+    generation AS "GENERATION",
+    COUNT(pid) AS "PCOUNT",
+    SUM(total_amount) AS "SUM_AMOUNT"
+FROM (
+    -- 步骤1：筛选存款总额超50万的客户
+    SELECT 
+        de.pid,
+        TRUNC(EXTRACT(YEAR FROM de.birthday), -1) || '后' AS generation,
+        SUM(d.amount) AS total_amount
+    FROM 
+        bk.deposit d
+        JOIN bk.deptor de ON d.pid = de.pid
+    GROUP BY 
+        de.pid, 
+        TRUNC(EXTRACT(YEAR FROM de.birthday), -1)
+    HAVING 
+        SUM(d.amount) > 500000
+) qualified_customers
+GROUP BY 
+    generation
+ORDER BY 
+    generation
 ```
+# 实验六
+## 6.1
+```sql
+CREATE OR REPLACE VIEW test6_01 AS
+SELECT 
+    SUBSTR(pname, 2) AS First_name,
+    COUNT(*) AS frequency
+FROM 
+    bk.deptor
+WHERE 
+    pname IS NOT NULL
+GROUP BY 
+    SUBSTR(pname, 2)
+ORDER BY 
+    frequency DESC
+```
+
+## 6.2
+```sql
+CREATE OR REPLACE VIEW test6_02 AS
+SELECT 
+    letter,
+    COUNT(*) AS frequency
+FROM (
+    -- 提取第二个字
+    SELECT SUBSTR(pname, 2, 1) AS letter
+    FROM bk.deptor
+    WHERE LENGTH(pname) >= 2  -- 确保有名字部分
+    
+    UNION ALL
+    
+    -- 提取第三个字（仅处理三字姓名）
+    SELECT SUBSTR(pname, 3, 1)
+    FROM bk.deptor
+    WHERE LENGTH(pname) >= 3
+)
+WHERE letter IS NOT NULL       -- 过滤空字符
+GROUP BY letter
+ORDER BY frequency DESC;
+```
+
+## 6.3
+```sql
+CREATE VIEW test6_03 AS
+SELECT *
+FROM bk.deptor d
+WHERE d.sex = '男'
+  AND d.age = 40
+  AND d.pid IN (
+      SELECT dp.pid
+      FROM bk.deposit dp
+      GROUP BY dp.pid
+      HAVING SUM(dp.amount) > 600000
+  )
+```
+
+## 6.4
+```sql
+CREATE VIEW test6_04 AS
+SELECT d.pid, d.pname, SUM(dp.amount) AS sum_amount
+FROM bk.deptor d
+JOIN bk.deposit dp ON d.pid = dp.pid
+JOIN bk.bank b ON dp.bid = b.bid
+WHERE b.city = '北京'
+GROUP BY d.pid, d.pname
+HAVING SUM(dp.amount) > 500000;
+```
+
+## 6.5
+```sql
+CREATE OR REPLACE VIEW test6_05 AS
+WITH valid_deposits AS (
+    SELECT 
+        d.bid,
+        d.amount,
+        d.did
+    FROM 
+        bk.deposit d
+        JOIN bk.deptor de ON d.pid = de.pid  -- 确保有效客户
+),
+bank_max AS (
+    SELECT 
+        bid, 
+        MAX(amount) AS max_amount
+    FROM 
+        valid_deposits
+    GROUP BY 
+        bid
+)
+SELECT 
+    b.bid,
+    b.bname,
+    bm.max_amount,
+    COUNT(vd.did) AS max_amount_count
+FROM 
+    bk.bank b
+    JOIN bank_max bm ON b.bid = bm.bid
+    JOIN valid_deposits vd ON vd.bid = bm.bid 
+                            AND vd.amount = bm.max_amount
+GROUP BY 
+    b.bid, 
+    b.bname, 
+    bm.max_amount
+ORDER BY 
+    b.bid;
+```
+
+## 6.6
+```sql
+CREATE OR REPLACE VIEW test6_06 AS
+SELECT 
+    de.* 
+FROM 
+    bk.deptor de
+WHERE 
+    de.sex = '女'
+    AND de.age = 40
+    AND EXISTS (
+        SELECT 1
+        FROM bk.deposit d
+        WHERE d.pid = de.pid
+        AND d.amount > 6000
+        GROUP BY d.bid
+        HAVING COUNT(d.did) > 3
+    );
+```
+
+## 6.7
+```sql
+CREATE VIEW test6_07 AS
+SELECT d.pid, d.pname, d.sex, d.age, d.birthday, d.parentpid
+FROM bk.deptor d
+JOIN bk.deposit dp ON d.pid = dp.pid
+WHERE d.sex = 'F'
+  AND d.age = 40
+  AND dp.amount > 200
+GROUP BY d.pid, d.pname, d.sex, d.age, d.birthday, d.parentpid
+HAVING COUNT(DISTINCT dp.bid) = (SELECT COUNT(*) FROM bk.bank);
+```
+
+## 6.8
+```sql
+CREATE VIEW test6_08 AS
+SELECT d.pid, d.pname, d.sex, d.age, d.birthday, d.parentpid
+FROM bk.deptor d
+WHERE d.parentpid IN (
+    SELECT parentpid
+    FROM bk.deptor
+    GROUP BY parentpid
+    HAVING COUNT(*) > 1
+);
+```
+## 6.9
+```sql
+CREATE OR REPLACE VIEW test6_09 AS
+SELECT 
+    de.* 
+FROM 
+    bk.deptor de
+WHERE 
+    de.sex = '女'
+    AND FLOOR(MONTHS_BETWEEN(SYSDATE, de.birthday)/12 = 40  -- 精确计算40周岁
+    AND EXISTS (
+        -- 在北京存款总额超过30万
+        SELECT 1
+        FROM bk.deposit d
+        JOIN bk.bank b ON d.bid = b.bid
+        WHERE d.pid = de.pid
+          AND b.city = '北京'
+        GROUP BY d.pid
+        HAVING SUM(d.amount) > 300000
+    )
+    AND NOT EXISTS (
+        -- 排除西宁有存款记录
+        SELECT 1
+        FROM bk.deposit d
+        JOIN bk.bank b ON d.bid = b.bid
+        WHERE d.pid = de.pid
+          AND b.city = '西宁'
+    );
+```
+
+## 6.10
+```sql
+CREATE VIEW test6_10 AS
+SELECT pid, rank, sum_amount
+FROM (
+    SELECT 
+        d.pid,
+        ROW_NUMBER() OVER (ORDER BY SUM(dp.amount) DESC) AS rank,
+        SUM(dp.amount) AS sum_amount
+    FROM bk.deptor d
+    JOIN bk.deposit dp ON d.pid = dp.pid
+    GROUP BY d.pid
+) subquery
+WHERE rank <= 20;
+```
+
