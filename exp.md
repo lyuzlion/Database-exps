@@ -1227,3 +1227,21 @@ LEFT JOIN bk.deposit de ON d.pid = de.pid
 GROUP BY d.pid, d.pname, d.sex, d.age, d.birthday, d.parentpid
 HAVING NVL(SUM(de.amount), 0) > 2000000;
 ```
+# 实验八
+## 8.1
+```sql
+CREATE TABLE test8_01 (
+    TEST VARCHAR2(50),
+    AGE NUMBER
+)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果1', 32)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果2', 34)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果3', 34)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果4', 30)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果5', 34)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果6', 34)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果7', 30)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果8', 30)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果9', 20)
+INSERT INTO test8_01 (TEST, AGE) VALUES ('结果10', 30)
+```
